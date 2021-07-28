@@ -1,6 +1,7 @@
 > scalafmtCheckAll
 $ exists target/scala-2.12/resource_managed/scalafmt.conf
 > compile
+$ exists target/scala-2.12/classes
 > test
 $ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 $ exists target/scala-2.12/resource_managed/scalafmt.conf
@@ -8,6 +9,7 @@ $ exists target/scala-2.12/resource_managed/scalafmt.conf
 > clean
 $ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 $ exists target/scala-2.12/resource_managed/scalafmt.conf
+$ absent target/scala-2.12/classes
 > test
 $ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 $ exists target/scala-2.12/resource_managed/scalafmt.conf

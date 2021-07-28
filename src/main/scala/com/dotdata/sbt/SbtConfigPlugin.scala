@@ -122,7 +122,7 @@ object SbtConfigPlugin extends AutoPlugin {
           clean,
           generateScalastyleConfTask,
           generateScalafmtConfTask,
-        ),
+        ).value,
 
         // Configuration below for formatting "main" and "test" folders on `sbt test`
         Test / test / testExecution := {
