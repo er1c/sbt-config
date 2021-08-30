@@ -11,21 +11,21 @@ object SbtConfigPlugin extends AutoPlugin {
   object autoImport {
     object DependencyMode {
       val testAndCompile: String = "test->test;compile->compile"
-      val macros: String = "compile-internal, test-internal"
+      val macros: String         = "compile-internal, test-internal"
     }
 
     sealed trait PublishingLocation
     object PublishingLocation {
-      case object DotDataNexus extends PublishingLocation
+      case object DotDataNexus            extends PublishingLocation
       case class GitHub(repoName: String) extends PublishingLocation
     }
 
     implicit class ProjectUtils(project: Project) {
       def dependsOnTestAndCompile(dependencies: Project*): Project = {
-        project.dependsOn(dependencies.map(_ % DependencyMode.testAndCompile):_*)
+        project.dependsOn(dependencies.map(_ % DependencyMode.testAndCompile): _*)
       }
       def dependsOnMacros(dependencies: Project*): Project = {
-        project.dependsOn(dependencies.map(_ % DependencyMode.macros):_*)
+        project.dependsOn(dependencies.map(_ % DependencyMode.macros): _*)
       }
     }
 
@@ -47,92 +47,89 @@ object SbtConfigPlugin extends AutoPlugin {
 
     // Formatting
 
-    val generateScalafmtConfTask = Def.task {
+    private def generateScalafmtConf(targetDir: File): File = {
       val scalafmtConfStream = getClass.getClassLoader.getResourceAsStream("scalafmt.conf")
-      val formatConfFile     = resourceManaged.value / "scalafmt.conf"
-      IO.delete(formatConfFile)
-      IO.write(formatConfFile, IO.readBytes(scalafmtConfStream))
-      Seq(formatConfFile)
+      val formatConfFile     = targetDir / "scalafmt.conf"
+
+      if (!formatConfFile.exists) {
+        IO.withTemporaryFile("scalafmt", "conf") { tmpFile =>
+          IO.write(tmpFile, IO.readBytes(scalafmtConfStream))
+          IO.move(tmpFile, formatConfFile)
+        }
+      }
+
+      formatConfFile
+    }
+    private def generateScalafmtConfTask: Def.Initialize[Task[Seq[File]]] = Def.taskDyn[Seq[File]] {
+      val conf = generateScalafmtConf(resourceManaged.value)
+      Def.task(Seq(conf))
     }
 
-    val generateScalastyleConfTask = Def.task {
-      val stream    = getClass.getClassLoader.getResourceAsStream("scalastyle-config.xml")
-      val styleFile = resourceManaged.value / "scalastyle-config.xml"
-      IO.delete(styleFile)
-      IO.write(styleFile, IO.readBytes(stream))
-      Seq(styleFile)
+    private def generateScalastyleConf(targetDir: File): File = {
+      val scalaStyleConfigStream = getClass.getClassLoader.getResourceAsStream("scalastyle-config.xml")
+      val styleConfigFile        = targetDir / "scalastyle-config.xml"
+
+      if (!styleConfigFile.exists) {
+        IO.withTemporaryFile("scalastyle-config", "xml") { tmpFile =>
+          IO.write(tmpFile, IO.readBytes(scalaStyleConfigStream))
+          IO.move(tmpFile, styleConfigFile)
+        }
+      }
+
+      styleConfigFile
+    }
+
+    private def generateScalastyleConfTask: Def.Initialize[Task[Seq[File]]] = Def.taskDyn[Seq[File]] {
+      val conf = generateScalastyleConf(resourceManaged.value)
+      Def.task(Seq(conf))
     }
 
     lazy val formatSettings: Def.SettingsDefinition = {
-      Seq(
-        Compile / resourceGenerators += generateScalafmtConfTask.taskValue,
-        scalafmtConfig := {
-          val scalafmtConfStream = getClass.getClassLoader.getResourceAsStream("scalafmt.conf")
-          val formatConfFile     = resourceManaged.value / "scalafmt.conf"
-          IO.delete(formatConfFile)
-          IO.write(formatConfFile, IO.readBytes(scalafmtConfStream))
-          formatConfFile
-        },
+      Seq(Compile, Test).flatMap(inConfig(_) { Seq(
+        scalafmt := scalafmt.dependsOn(generateScalafmtConfTask).value,
+        scalafmtAll := scalafmtAll.dependsOn(generateScalafmtConfTask).value,
+        scalafmtCheckAll := scalafmtCheckAll.dependsOn(generateScalafmtConfTask).value,
+        scalafmtOnly := scalafmtOnly.dependsOn(generateScalafmtConfTask).evaluated,
+        scalafmtSbt := scalafmtSbt.dependsOn(generateScalafmtConfTask).value,
+      )}) ++ Seq(
+        scalafmt := (Compile / scalafmt).dependsOn(generateScalafmtConfTask).value,
+        Compile / resourceGenerators += generateScalafmtConfTask,
+        Test / resourceGenerators += generateScalafmtConfTask,
+        scalafmtConfig := generateScalafmtConf(resourceManaged.value),
 
         // Configuration below for formatting "main" and "test" folders on `sbt test`
-        Test / test / testExecution := {
-          (Compile / scalafmt).value
-          (Test / scalafmt).value
-          (Test / test / testExecution).value
-        }
-      ) ++
-      Seq(Compile, Test).flatMap(inConfig(_) { Seq(
-        scalafmtCheckAll := scalafmtCheckAll.dependsOn(generateScalafmtConfTask).value,
-        scalafmtCheck := scalafmtCheck.dependsOn(generateScalafmtConfTask).value,
-        scalafmtSbt := scalafmtSbt.dependsOn(generateScalafmtConfTask).value,
-        scalafmtSbtCheck := scalafmtSbtCheck.dependsOn(generateScalafmtConfTask).value,
-      )})
+        Test / test / testExecution := (Test / test / testExecution)
+          .dependsOn(Test / scalafmtCheckAll)
+          .dependsOn(Compile / scalafmtCheckAll)
+          .value
+      )
     }
 
     // Linting
 
     def scalastyleSettings(excludes: String = ""): Def.SettingsDefinition = {
-
       if (excludes.nonEmpty) {
-        Seq(
-          (Compile / scalastyleSources) := {
-            ((Compile / scalaSource).value ** "*.scala").get.filterNot(_.getAbsolutePath.contains(excludes))
-          },
-          (Test / scalastyleSources) := {
-            ((Test / scalaSource).value ** "*.scala").get.filterNot(_.getAbsolutePath.contains(excludes))
+        Seq(Compile, Test).flatMap { inConfig(_) {
+          scalastyleSources := {
+            (scalaSource.value ** "*.scala").get.filterNot(_.getAbsolutePath.contains(excludes))
           }
-        )
+        }}
       } else {
-        Seq()
-      } ++ Seq(
-        Compile / resourceGenerators += generateScalastyleConfTask.taskValue,
-
-        (scalastyle in Compile) := (scalastyle in Compile) dependsOn generateScalastyleConfTask,
-        (scalastyle in Test) := (scalastyle in Test) dependsOn generateScalastyleConfTask,
-
-        scalastyleConfig := {
-          val stream    = getClass.getClassLoader.getResourceAsStream("scalastyle-config.xml")
-          val styleFile = resourceManaged.value / "scalastyle-config.xml"
-          IO.delete(styleFile)
-          IO.write(styleFile, IO.readBytes(stream))
-          styleFile
-        },
-
-        clean := Def.sequential(
-          clean,
-          generateScalastyleConfTask,
-          generateScalafmtConfTask,
-        ).value,
-
+        Seq.empty
+      } ++ Seq(Compile, Test).flatMap(inConfig(_) { Seq(
+        scalastyle := scalastyle.dependsOn(generateScalastyleConfTask).evaluated,
+      )}) ++ Seq(
+        // Need to also set the "Global" task config
+        scalastyle := (Compile / scalastyle).dependsOn(generateScalastyleConfTask).evaluated,
+        Compile / resourceGenerators += generateScalastyleConfTask,
+        Test / resourceGenerators += generateScalastyleConfTask,
+        scalastyleConfig := generateScalastyleConf(resourceManaged.value),
         // Configuration below for formatting "main" and "test" folders on `sbt test`
-        Test / test / testExecution := {
-          (Compile / scalastyle).toTask("").value
-          (Test / scalastyle).toTask("").value
-          (Test / test / testExecution).value
-        }
-      ) ++ Seq(Compile, Test).flatMap(inConfig(_) { Seq(
-        scalastyle := scalastyle.dependsOn(generateScalastyleConfTask).inputTaskValue,
-      )})
+        Test / test / testExecution := (Test / test / testExecution)
+          .dependsOn((Test / scalastyle).toTask(""))
+          .dependsOn((Compile / scalastyle).toTask(""))
+          .value
+      )
     }
 
     // Deprecations are not immediate and need a notice
@@ -293,7 +290,7 @@ object SbtConfigPlugin extends AutoPlugin {
         val githubVersion =
           for {
             runId <- sys.env.get("GITHUB_RUN_NUMBER")
-            sha <- sys.env.get("GITHUB_SHA")
+            sha   <- sys.env.get("GITHUB_SHA")
           } yield {
             s"$majorVersion.$runId-$sha"
           }
