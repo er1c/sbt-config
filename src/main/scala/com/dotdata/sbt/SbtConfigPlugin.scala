@@ -184,7 +184,7 @@ object SbtConfigPlugin extends AutoPlugin {
       "-Ywarn-value-discard"
     )
 
-    def lintingSettings(failOnWarnings: Boolean = true, scalastyleExcludes: String = ""): Def.SettingsDefinition = {
+    def lintingSettings(failOnWarnings: Boolean = true, scalastyleEnabled: Boolean = true, scalastyleExcludes: String = ""): Def.SettingsDefinition = {
 
       val scalacOptionsSettings =
         Seq(
@@ -195,10 +195,22 @@ object SbtConfigPlugin extends AutoPlugin {
           Test / console / scalacOptions --= scalacOptionsConsoleExclusions
         )
 
+      val scalastyleSettingsDef: Def.SettingsDefinition = {
+        if (scalastyleEnabled) {
+          scalastyleSettings(scalastyleExcludes)
+        } else {
+          Seq(
+            Test / scalastyle := {},
+            Compile / scalastyle := {},
+            scalastyle := {}
+          )
+        }
+      }
+
       if (failOnWarnings) {
-        scalacOptionsSettings ++ fatalWarningsExceptDeprecation ++ scalastyleSettings(scalastyleExcludes)
+        scalacOptionsSettings ++ fatalWarningsExceptDeprecation ++ scalastyleSettingsDef
       } else {
-        scalacOptionsSettings ++ scalastyleSettings(scalastyleExcludes)
+        scalacOptionsSettings ++ scalastyleSettingsDef
       }
     }
 
@@ -273,11 +285,12 @@ object SbtConfigPlugin extends AutoPlugin {
         testCoverage: Double = 80.00,
         publishingEnabled: Boolean = false,
         publishingLocation: PublishingLocation = PublishingLocation.DotDataNexus,
+        scalastyleEnabled: Boolean = true,
         scalastyleExcludes: String = "",
     ): Def.SettingsDefinition = {
       compilerSettings() ++
         formatSettings ++
-        lintingSettings(failOnWarnings, scalastyleExcludes) ++
+        lintingSettings(failOnWarnings, scalastyleEnabled, scalastyleExcludes) ++
         testingSettings ++
         coverageSettings(minimumCoverage = testCoverage) ++
         publishSettings(publishingEnabled, publishingLocation)
