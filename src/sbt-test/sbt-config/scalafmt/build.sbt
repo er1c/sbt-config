@@ -1,7 +1,7 @@
 lazy val root = (project in file("."))
   .settings(dotDataSettings())
   .settings(
-    name := "sbt-config-test-default",
+    name := "sbt-config-test-scalafmt",
     version := "0.1",
     scalaVersion := "2.12.12",
     // Default publishArtifact is false

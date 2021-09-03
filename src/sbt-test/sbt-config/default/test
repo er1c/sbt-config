@@ -1,3 +1,5 @@
+> check
+
 > Compile / scalastyle
 $ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 

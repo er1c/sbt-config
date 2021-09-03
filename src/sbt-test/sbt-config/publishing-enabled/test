@@ -8,6 +8,7 @@ $ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 
 > test
 $ exists target/scala-2.12/resource_managed/scalafmt.conf
+$ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 
 > clean
 $ absent target/scala-2.12

@@ -9,5 +9,9 @@ lazy val root = (project in file("."))
       val x = publishArtifact.value
       assert(x == false, s"publishArtifact should be false: $x")
     },
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.5" % Test
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.5" % Test,
+    TaskKey[Unit]("check") := {
+      assert(!assembleArtifact.value)
+      ()
+    }
   )

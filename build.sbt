@@ -46,11 +46,10 @@ scmInfo := Some(
 )
 
 enablePlugins(SbtPlugin)
+addSbtPlugin("com.eed3si9n"   %% "sbt-assembly"          % "1.1.0")
 addSbtPlugin("org.scalameta"  % "sbt-scalafmt"           % "2.4.2")
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
-// Currently sbt-scoverage doesn't work for scala 2.12.13:
-//   - https://github.com/scoverage/sbt-scoverage/issues/321
-addSbtPlugin("org.scoverage"  %% "sbt-scoverage"         % "1.6.1")
+addSbtPlugin("org.scoverage"  %% "sbt-scoverage"         % "1.8.2")
 
 // Make the build faster, since there is no Scaladocs anyway
 sources in (Compile, doc) := Seq.empty

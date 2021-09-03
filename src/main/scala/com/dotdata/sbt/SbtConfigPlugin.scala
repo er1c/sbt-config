@@ -5,10 +5,14 @@ import org.scalastyle.sbt.ScalastylePlugin.autoImport._
 import scoverage.ScoverageKeys._
 import sbt.Keys._
 import sbt._
+import sbtassembly.AssemblyPlugin.autoImport._
+
 import scala.collection.JavaConverters._
 
 object SbtConfigPlugin extends AutoPlugin {
-  object autoImport {
+  object autoImport extends SbtConfigKeys {
+    val AssemblyCache = com.dotdata.sbt.AssemblyCache
+
     object DependencyMode {
       val testAndCompile: String = "test->test;compile->compile"
       val macros: String         = "compile-internal, test-internal"
@@ -29,7 +33,7 @@ object SbtConfigPlugin extends AutoPlugin {
       }
     }
 
-    // Compiler settings
+    // region Compiler settings
 
     def compilerSettings(versionOfScala: String = "2.12.12"): Def.SettingsDefinition = {
       Seq(
@@ -45,7 +49,9 @@ object SbtConfigPlugin extends AutoPlugin {
       )
     }
 
-    // Formatting
+    // endregion
+
+    // region Formatting
 
     private def generateScalafmtConf(targetDir: File): File = {
       val scalafmtConfStream = getClass.getClassLoader.getResourceAsStream("scalafmt.conf")
@@ -60,10 +66,38 @@ object SbtConfigPlugin extends AutoPlugin {
 
       formatConfFile
     }
+
     private def generateScalafmtConfTask: Def.Initialize[Task[Seq[File]]] = Def.taskDyn[Seq[File]] {
       val conf = generateScalafmtConf(resourceManaged.value)
       Def.task(Seq(conf))
     }
+
+    lazy val formatSettings: Def.SettingsDefinition = {
+      Seq(Compile, Test).flatMap(inConfig(_) {
+        Seq(
+          scalafmt := scalafmt.dependsOn(generateScalafmtConfTask).value,
+          scalafmtAll := scalafmtAll.dependsOn(generateScalafmtConfTask).value,
+          scalafmtCheckAll := scalafmtCheckAll.dependsOn(generateScalafmtConfTask).value,
+          scalafmtOnly := scalafmtOnly.dependsOn(generateScalafmtConfTask).evaluated,
+          scalafmtSbt := scalafmtSbt.dependsOn(generateScalafmtConfTask).value
+        )
+      }) ++ Seq(
+        scalafmt := (Compile / scalafmt).dependsOn(generateScalafmtConfTask).value,
+        Compile / resourceGenerators += generateScalafmtConfTask,
+        Test / resourceGenerators += generateScalafmtConfTask,
+        scalafmtConfig := generateScalafmtConf(resourceManaged.value),
+        // Configuration below for formatting "main" and "test" folders on `sbt test`
+        Test / test / testExecution := (Test / test / testExecution)
+          .dependsOn(Test / scalafmtCheckAll)
+          .dependsOn(Compile / scalafmtCheckAll)
+          .dependsOn(generateScalafmtConfTask)
+          .value
+      )
+    }
+
+    // endregion
+
+    // region Linting
 
     private def generateScalastyleConf(targetDir: File): File = {
       val scalaStyleConfigStream = getClass.getClassLoader.getResourceAsStream("scalastyle-config.xml")
@@ -84,50 +118,33 @@ object SbtConfigPlugin extends AutoPlugin {
       Def.task(Seq(conf))
     }
 
-    lazy val formatSettings: Def.SettingsDefinition = {
-      Seq(Compile, Test).flatMap(inConfig(_) { Seq(
-        scalafmt := scalafmt.dependsOn(generateScalafmtConfTask).value,
-        scalafmtAll := scalafmtAll.dependsOn(generateScalafmtConfTask).value,
-        scalafmtCheckAll := scalafmtCheckAll.dependsOn(generateScalafmtConfTask).value,
-        scalafmtOnly := scalafmtOnly.dependsOn(generateScalafmtConfTask).evaluated,
-        scalafmtSbt := scalafmtSbt.dependsOn(generateScalafmtConfTask).value,
-      )}) ++ Seq(
-        scalafmt := (Compile / scalafmt).dependsOn(generateScalafmtConfTask).value,
-        Compile / resourceGenerators += generateScalafmtConfTask,
-        Test / resourceGenerators += generateScalafmtConfTask,
-        scalafmtConfig := generateScalafmtConf(resourceManaged.value),
-
-        // Configuration below for formatting "main" and "test" folders on `sbt test`
-        Test / test / testExecution := (Test / test / testExecution)
-          .dependsOn(Test / scalafmtCheckAll)
-          .dependsOn(Compile / scalafmtCheckAll)
-          .value
-      )
-    }
-
-    // Linting
-
     def scalastyleSettings(excludes: String = ""): Def.SettingsDefinition = {
       if (excludes.nonEmpty) {
-        Seq(Compile, Test).flatMap { inConfig(_) {
-          scalastyleSources := {
-            (scalaSource.value ** "*.scala").get.filterNot(_.getAbsolutePath.contains(excludes))
+        Seq(Compile, Test).flatMap {
+          inConfig(_) {
+            scalastyleSources := {
+              (scalaSource.value ** "*.scala").get.filterNot(_.getAbsolutePath.contains(excludes))
+            }
           }
-        }}
+        }
       } else {
         Seq.empty
-      } ++ Seq(Compile, Test).flatMap(inConfig(_) { Seq(
-        scalastyle := scalastyle.dependsOn(generateScalastyleConfTask).evaluated,
-      )}) ++ Seq(
+      } ++ Seq(
+        Compile / scalastyle := (Compile / scalastyle).dependsOn(generateScalastyleConfTask).evaluated,
+        Test / scalastyle := (Test / scalastyle).dependsOn(generateScalastyleConfTask).evaluated,
+        scalastyle := scalastyle.dependsOn(generateScalastyleConfTask).evaluated
+      ) ++ Seq(
         // Need to also set the "Global" task config
         scalastyle := (Compile / scalastyle).dependsOn(generateScalastyleConfTask).evaluated,
         Compile / resourceGenerators += generateScalastyleConfTask,
         Test / resourceGenerators += generateScalastyleConfTask,
         scalastyleConfig := generateScalastyleConf(resourceManaged.value),
         // Configuration below for formatting "main" and "test" folders on `sbt test`
-        Test / test / testExecution := (Test / test / testExecution)
+        Test / test / testExecution :=
+          (Test / test / testExecution)
           .dependsOn((Test / scalastyle).toTask(""))
           .dependsOn((Compile / scalastyle).toTask(""))
+          .dependsOn(generateScalastyleConfTask)
           .value
       )
     }
@@ -144,9 +161,7 @@ object SbtConfigPlugin extends AutoPlugin {
                 info.getReportedProblems
             }
 
-            val deprecationsOnly = problems.forall { problem =>
-              problem.message().contains("is deprecated")
-            }
+            val deprecationsOnly = problems.forall { problem => problem.message().contains("is deprecated") }
 
             if (!deprecationsOnly) sys.error("Fatal warnings: some warnings other than deprecations were found.")
             compiled
@@ -177,7 +192,7 @@ object SbtConfigPlugin extends AutoPlugin {
       "-Ywarn-unused-import",
       "-Ywarn-value-discard",
       "-Ywarn-dead-code",
-      "-Ywarn-unused:_,-explicits,-implicits",
+      "-Ywarn-unused:_,-explicits,-implicits"
     )
 
     private val scalacOptionsNotInTest: Seq[String] = Seq(
@@ -214,7 +229,9 @@ object SbtConfigPlugin extends AutoPlugin {
       }
     }
 
-    // Testing
+    // endregion
+
+    // region Testing
 
     lazy val testingSettings: Def.SettingsDefinition = Seq(
       // Options from http://www.scalatest.org/user_guide/using_scalatest_with_sbt:
@@ -228,13 +245,15 @@ object SbtConfigPlugin extends AutoPlugin {
     def coverageSettings(excludedPackages: String = "", minimumCoverage: Double = 80.00, failOnMinimum: Boolean = true): Def.SettingsDefinition = {
       Seq(
         coverageExcludedPackages := excludedPackages,
-        coverageMinimum := minimumCoverage,
+        coverageMinimumStmtTotal := minimumCoverage,
         coverageFailOnMinimum := failOnMinimum,
         coverageHighlighting := true
       )
     }
 
-    // Publishing
+    // endregion
+
+    // region Publishing
 
     def publishSettings(publishingEnabled: Boolean, publishingLocation: PublishingLocation): Def.SettingsDefinition = {
       if (publishingEnabled) {
@@ -280,6 +299,49 @@ object SbtConfigPlugin extends AutoPlugin {
       }
     }
 
+    // endregion
+
+    // region assembly
+
+    def assemblySettings(
+        assemblyEnabled: Boolean = false,
+        includeScala: Boolean = true,
+        includeBin: Boolean = true,
+        includeDependency: Boolean = true
+    ): Def.SettingsDefinition = {
+      Seq(
+        Compile / doc / sources := Seq.empty,
+        Test / doc / sources := Seq.empty,
+        Compile / packageDoc / publishArtifact := false,
+        Test / packageDoc / publishArtifact := false,
+        assembly / test := {} // disable tests during assembly
+      ) ++ {
+        if (assemblyEnabled) {
+          Seq(
+            assembleArtifact := true,
+            assembly / assemblyOption ~= {
+              _.withIncludeScala(includeScala)
+                .withIncludeBin(includeBin)
+                .withIncludeDependency(includeDependency)
+            },
+            assembly / assemblyMergeStrategy := {
+              case "scalafmt.conf" => MergeStrategy.discard
+              case "scalastyle-config.xml" => MergeStrategy.discard
+              case "application.conf" => MergeStrategy.concat
+              case "unwanted.txt" => MergeStrategy.discard
+              case x =>
+                val oldStrategy = (assembly / assemblyMergeStrategy).value
+                oldStrategy(x)
+            }
+          ) ++ AssemblyCache.settings
+        } else {
+          Seq(assembleArtifact := false)
+        }
+      }
+    }
+
+    // endregion
+
     def dotDataSettings(
         failOnWarnings: Boolean = true,
         testCoverage: Double = 80.00,
@@ -287,16 +349,26 @@ object SbtConfigPlugin extends AutoPlugin {
         publishingLocation: PublishingLocation = PublishingLocation.DotDataNexus,
         scalastyleEnabled: Boolean = true,
         scalastyleExcludes: String = "",
+        assemblyEnabled: Boolean = false,
+        assemblyIncludeScala: Boolean = true,
+        assemblyIncludeBin: Boolean = true,
+        assemblyIncludeDependency: Boolean = true
     ): Def.SettingsDefinition = {
       compilerSettings() ++
         formatSettings ++
         lintingSettings(failOnWarnings, scalastyleEnabled, scalastyleExcludes) ++
         testingSettings ++
         coverageSettings(minimumCoverage = testCoverage) ++
-        publishSettings(publishingEnabled, publishingLocation)
+        publishSettings(publishingEnabled, publishingLocation) ++
+        assemblySettings(
+          assemblyEnabled = assemblyEnabled,
+          includeScala = assemblyIncludeScala,
+          includeBin = assemblyIncludeBin,
+          includeDependency = assemblyIncludeDependency
+        )
     }
 
-    def githubRunNumberBasedVersion(majorVersion: String, mainBranchName: String = "main"): String = {
+    private def githubRunNumberBasedVersion(majorVersion: String, mainBranchName: String = "main"): String = {
       if (sys.env.get("GITHUB_REF").contains(s"refs/heads/$mainBranchName")) {
         s"$majorVersion.${sys.env("GITHUB_RUN_NUMBER")}"
       } else {
