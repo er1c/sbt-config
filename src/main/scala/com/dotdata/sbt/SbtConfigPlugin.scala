@@ -256,19 +256,22 @@ object SbtConfigPlugin extends AutoPlugin {
     // region Publishing
 
     def publishSettings(publishingEnabled: Boolean, publishingLocation: PublishingLocation): Def.SettingsDefinition = {
+      val common = Seq(
+        // Don't generate docs in production builds
+        Compile / doc / sources := Seq.empty,
+        Compile / packageDoc / publishArtifact := false,
+      )
+
       if (publishingEnabled) {
         val commonPublishingSettings = Seq(
           organization := "com.dotdata",
-          // Don't generate docs in production builds
-          Compile / doc / sources := Seq.empty,
-          Compile / packageDoc / publishArtifact := false,
           publishMavenStyle := true,
           publishArtifact := true
         )
 
         publishingLocation match {
           case PublishingLocation.DotDataNexus =>
-            commonPublishingSettings ++ Seq(
+            common ++ commonPublishingSettings ++ Seq(
               publishTo := {
                 // Repository internal caching
                 val nexus = Option(System.getProperty("REPOSITORY_URL")).getOrElse("http://ec2-52-38-203-205.us-west-2.compute.amazonaws.com")
@@ -280,7 +283,7 @@ object SbtConfigPlugin extends AutoPlugin {
               }
             )
           case PublishingLocation.GitHub(githubRepoName) =>
-            commonPublishingSettings ++ Seq(
+            common ++ commonPublishingSettings ++ Seq(
               publishTo := Some("GitHub Package Registry" at ("https://maven.pkg.github.com/ramencloud/" + githubRepoName)),
               credentials ++= {
                 (sys.env.get("PUBLISH_TO_GITHUB_USERNAME"), sys.env.get("PUBLISH_TO_GITHUB_TOKEN")) match {
@@ -292,7 +295,7 @@ object SbtConfigPlugin extends AutoPlugin {
             )
         }
       } else {
-        Seq(
+        common ++ Seq(
           organization := "com.dotdata",
           publishArtifact := false
         )
