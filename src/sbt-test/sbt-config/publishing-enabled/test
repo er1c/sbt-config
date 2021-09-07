@@ -18,4 +18,30 @@ $ absent target/scala-2.12
 $ exists target/scala-2.12/resource_managed/scalafmt.conf
 $ exists target/scala-2.12/resource_managed/scalastyle-config.xml
 
+> package
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-sources.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-tests-sources.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-tests.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1.pom
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-javadoc.jar
+
+> packageBin
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-sources.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-tests-sources.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-tests.jar
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1.pom
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-javadoc.jar
+
 > publishLocal
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1.jar
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-sources.jar
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-tests-sources.jar
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-tests.jar
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1.pom
+$ absent target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-javadoc.jar
+
+> packageDoc
+# This is stupid, but the file should be just the MANIFEST file
+$ exists target/scala-2.12/sbt-config-test-publishing-enabled_2.12-0.1-javadoc.jar

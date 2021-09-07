@@ -256,10 +256,21 @@ object SbtConfigPlugin extends AutoPlugin {
     // region Publishing
 
     def publishSettings(publishingEnabled: Boolean, publishingLocation: PublishingLocation): Def.SettingsDefinition = {
-      val common = Seq(
-        // Don't generate docs in production builds
-        Compile / doc / sources := Seq.empty,
+      val universalCommonPublishingSettings = Seq(
+        // Don't scan sources during packageDoc
+        Compile / doc / sources := Nil,
+        Test / doc / sources := Nil,
+        doc / sources := Nil,
+
+        // Don't publish docs
         Compile / packageDoc / publishArtifact := false,
+        Test / packageDoc / publishArtifact := false,
+        packageDoc / publishArtifact := false,
+
+        // Don't aggregate packageDoc
+        Compile / packageDoc / aggregate := false,
+        Test / packageDoc / aggregate := false,
+        packageDoc / aggregate := false,
       )
 
       if (publishingEnabled) {
@@ -267,35 +278,37 @@ object SbtConfigPlugin extends AutoPlugin {
           organization := "com.dotdata",
           publishMavenStyle := true,
           publishArtifact := true
-        )
+        ) ++ universalCommonPublishingSettings
 
-        publishingLocation match {
-          case PublishingLocation.DotDataNexus =>
-            common ++ commonPublishingSettings ++ Seq(
-              publishTo := {
-                // Repository internal caching
-                val nexus = Option(System.getProperty("REPOSITORY_URL")).getOrElse("http://ec2-52-38-203-205.us-west-2.compute.amazonaws.com")
-                if (isSnapshot.value) {
-                  Some(("snapshots" at nexus + "/repository/maven-snapshots;build.timestamp=" + new java.util.Date().getTime).withAllowInsecureProtocol(true))
-                } else {
-                  Some(("releases" at nexus + "/repository/maven-releases").withAllowInsecureProtocol(true))
+        commonPublishingSettings ++ {
+          publishingLocation match {
+            case PublishingLocation.DotDataNexus =>
+              Seq(
+                publishTo := {
+                  // Repository internal caching
+                  val nexus = Option(System.getProperty("REPOSITORY_URL")).getOrElse("http://ec2-52-38-203-205.us-west-2.compute.amazonaws.com")
+                  if (isSnapshot.value) {
+                    Some(("snapshots" at nexus + "/repository/maven-snapshots;build.timestamp=" + new java.util.Date().getTime).withAllowInsecureProtocol(true))
+                  } else {
+                    Some(("releases" at nexus + "/repository/maven-releases").withAllowInsecureProtocol(true))
+                  }
                 }
-              }
-            )
-          case PublishingLocation.GitHub(githubRepoName) =>
-            common ++ commonPublishingSettings ++ Seq(
-              publishTo := Some("GitHub Package Registry" at ("https://maven.pkg.github.com/ramencloud/" + githubRepoName)),
-              credentials ++= {
-                (sys.env.get("PUBLISH_TO_GITHUB_USERNAME"), sys.env.get("PUBLISH_TO_GITHUB_TOKEN")) match {
-                  case (Some(user), Some(pass)) =>
-                    Seq(Credentials("GitHub Package Registry", "maven.pkg.github.com", user, pass))
-                  case _ => Nil
+              )
+            case PublishingLocation.GitHub(githubRepoName) =>
+              Seq(
+                publishTo := Some("GitHub Package Registry" at ("https://maven.pkg.github.com/ramencloud/" + githubRepoName)),
+                credentials ++= {
+                  (sys.env.get("PUBLISH_TO_GITHUB_USERNAME"), sys.env.get("PUBLISH_TO_GITHUB_TOKEN")) match {
+                    case (Some(user), Some(pass)) =>
+                      Seq(Credentials("GitHub Package Registry", "maven.pkg.github.com", user, pass))
+                    case _ => Nil
+                  }
                 }
-              }
-            )
+              )
+          }
         }
       } else {
-        common ++ Seq(
+        universalCommonPublishingSettings ++ Seq(
           organization := "com.dotdata",
           publishArtifact := false
         )
@@ -312,34 +325,31 @@ object SbtConfigPlugin extends AutoPlugin {
         includeBin: Boolean = true,
         includeDependency: Boolean = true
     ): Def.SettingsDefinition = {
-      Seq(
-        Compile / doc / sources := Seq.empty,
-        Test / doc / sources := Seq.empty,
-        Compile / packageDoc / publishArtifact := false,
-        Test / packageDoc / publishArtifact := false,
-        assembly / test := {} // disable tests during assembly
-      ) ++ {
-        if (assemblyEnabled) {
-          Seq(
-            assembleArtifact := true,
-            assembly / assemblyOption ~= {
-              _.withIncludeScala(includeScala)
-                .withIncludeBin(includeBin)
-                .withIncludeDependency(includeDependency)
-            },
-            assembly / assemblyMergeStrategy := {
-              case "scalafmt.conf" => MergeStrategy.discard
-              case "scalastyle-config.xml" => MergeStrategy.discard
-              case "application.conf" => MergeStrategy.concat
-              case "unwanted.txt" => MergeStrategy.discard
-              case x =>
-                val oldStrategy = (assembly / assemblyMergeStrategy).value
-                oldStrategy(x)
-            }
-          ) ++ AssemblyCache.settings
-        } else {
-          Seq(assembleArtifact := false)
-        }
+      if (assemblyEnabled) {
+        Seq(
+          // https://www.scala-sbt.org/sbt-native-packager/formats/universal.html#skip-packagedoc-task-on-stage
+          Compile / packageDoc / mappings := Nil,
+          Test / packageDoc / mappings := Nil,
+          packageDoc / mappings := Nil,
+
+          assembleArtifact := true,
+          assembly / assemblyOption ~= {
+            _.withIncludeScala(includeScala)
+              .withIncludeBin(includeBin)
+              .withIncludeDependency(includeDependency)
+          },
+          assembly / assemblyMergeStrategy := {
+            case "scalafmt.conf" => MergeStrategy.discard
+            case "scalastyle-config.xml" => MergeStrategy.discard
+            case "application.conf" => MergeStrategy.concat
+            case "unwanted.txt" => MergeStrategy.discard
+            case x =>
+              val oldStrategy = (assembly / assemblyMergeStrategy).value
+              oldStrategy(x)
+          }
+        ) ++ AssemblyCache.settings
+      } else {
+        Seq(assembleArtifact := false)
       }
     }
 
