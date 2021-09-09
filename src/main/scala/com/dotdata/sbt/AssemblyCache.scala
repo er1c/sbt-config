@@ -6,11 +6,14 @@ import _root_.sbt.internal.util.Util
 import sbtassembly.AssemblyPlugin.autoImport._
 
 import java.util.Locale
-import scala.sys.process._
 import scala.reflect.runtime.universe
 import scala.util.Try
 
 object AssemblyCache extends SbtConfigKeys {
+  private lazy val isCIEnv: Boolean =
+    sys.env.isDefinedAt("BUILD_NUMBER") || // Jenkins
+      sys.env.isDefinedAt("GITHUB_RUN_NUMBER") // GitHub
+
   // region sbt-shim
 
   /** This provides a shim for pre-sbt 1.5.x+ branches */
@@ -70,8 +73,18 @@ object AssemblyCache extends SbtConfigKeys {
 
   // endregion
 
+  // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
+  //   different settings for ci vs dev environments.
   /** For Global Scope sbt settings */
   def settings: Seq[Def.Setting[_]] = {
+    if (isCIEnv) ciSettings
+    else devSettings
+  }
+
+  // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
+  //   localCacheDirectory / "assembly" and only withCacheUnzip(true) (e.g. withCacheOutput(false))
+  //   to avoid creating too large of a cache on jenkins agents
+  def ciSettings: Seq[Def.Setting[_]] = {
     Seq(
       // Initialize the shim if on older sbt version, otherwise use existing value
       sbtShimLocalCacheDirectory := AssemblyCache.globalLocalCache,
@@ -79,36 +92,69 @@ object AssemblyCache extends SbtConfigKeys {
         if (sbtHasLocalCacheDirectory(sbtVersion.value)) localCacheDirectory.value
         else sbtShimLocalCacheDirectory.value
       },
-      sbtAssemblyDirectory := {
-        // k9lib/workspace/build_env sets CONTAINER_REPO_ROOT_DIR to /shared
-        val repoRoot: String =
-          sys.env.get("CONTAINER_REPO_ROOT_DIR") orElse
-            Try(("git rev-parse --show-toplevel".!!).trim).toOption getOrElse
-            ((LocalRootProject / baseDirectory).value / "..").getCanonicalPath
-
-        val relativeWorkDir =
-          baseDirectory.value.getCanonicalPath
-            .stripPrefix(repoRoot)
-            .stripPrefix(java.io.File.pathSeparator)
-        val canonicalBranch = sys.env.getOrElse("BRANCH_NAME_CANONICAL", "master")
-        val sbtAssemblyLocalCacheDir: File =
-          localCacheDirectory.value / "assembly" / canonicalBranch / relativeWorkDir
-
-        // (e.g. ~/.sbt/cache/assembly/MVP-6/... (Linux), ~/Library/Caches/sbt/assembly/MVP-6/... (OSX))
-        sbtAssemblyLocalCacheDir
-      },
-      // Cache sbt assembly intermediate files in a shared location instead of target/
+      sbtAssemblyDirectory := localCacheDirectory.value / "assembly",
       assembly / assemblyOption := {
         val opt = (assembly / assemblyOption).value
-        val dir = sbtAssemblyDirectory.value
-        opt
-          .withAssemblyDirectory(dir)
-          // These are defaults, but adding for readability and explicitness
-          .withCacheUnzip(true)  // Keep dependency .jar files pre-extracted
-          .withCacheOutput(true) // Cache pre-merged assembly file .class files to diff changes
+        opt.withAssemblyDirectory(sbtAssemblyDirectory.value)
+          .withCacheUnzip(true)    // Keep dependency .jar files pre-extracted
+          .withCacheOutput(false) // Don't cache the assembly output on jenkins agents
       }
     )
   }
+
+  // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
+  //   the default `target/` directory, but for both withCacheUnzip(true) and withCacheOutput(true)
+  def devSettings: Seq[Def.Setting[_]] = {
+    Seq(
+      // These are the default values, but setting them for explicitness/readability
+      assembly / assemblyOption ~= {
+        _.withCacheUnzip(true)
+          .withCacheOutput(true)
+      }
+    )
+  }
+
+//// This may be too-specific in creating branch-specific caches - especially for withCacheUnzip(true)
+////   Created a proposal here: https://github.com/sbt/sbt-assembly/issues/445 to split out the different
+///    file system path locations for finer-grain control
+//  def settings(cacheUnzip: Boolean, cacheOutput: Boolean): Seq[Def.Setting[_]] = {
+//    Seq(
+//      // Initialize the shim if on older sbt version, otherwise use existing value
+//      sbtShimLocalCacheDirectory := AssemblyCache.globalLocalCache,
+//      localCacheDirectory := {
+//        if (sbtHasLocalCacheDirectory(sbtVersion.value)) localCacheDirectory.value
+//        else sbtShimLocalCacheDirectory.value
+//      },
+//      sbtAssemblyDirectory := {
+//        // k9lib/workspace/build_env sets CONTAINER_REPO_ROOT_DIR to /shared
+//        val repoRoot: String =
+//          sys.env.get("CONTAINER_REPO_ROOT_DIR") orElse
+//            Try(("git rev-parse --show-toplevel".!!).trim).toOption getOrElse
+//            ((LocalRootProject / baseDirectory).value / "..").getCanonicalPath
+//
+//        val relativeWorkDir =
+//          baseDirectory.value.getCanonicalPath
+//            .stripPrefix(repoRoot)
+//            .stripPrefix(java.io.File.pathSeparator)
+//        val canonicalBranch = sys.env.getOrElse("BRANCH_NAME_CANONICAL", "master")
+//        val sbtAssemblyLocalCacheDir: File =
+//          localCacheDirectory.value / "assembly" / canonicalBranch / relativeWorkDir
+//
+//        // (e.g. ~/.sbt/cache/assembly/MVP-6/... (Linux), ~/Library/Caches/sbt/assembly/MVP-6/... (OSX))
+//        sbtAssemblyLocalCacheDir
+//      },
+//      // Cache sbt assembly intermediate files in a shared location instead of target/
+//      assembly / assemblyOption := {
+//        val opt = (assembly / assemblyOption).value
+//        val dir = sbtAssemblyDirectory.value
+//        opt
+//          .withAssemblyDirectory(dir)
+//          // These are defaults, but adding for readability and explicitness
+//          .withCacheUnzip(true)  // Keep dependency .jar files pre-extracted
+//          .withCacheOutput(true) // Cache pre-merged assembly file .class files to diff changes
+//      }
+//    )
+//  }
 
   def settings(configuration: Configuration): Seq[Def.Setting[_]] = inConfig(configuration)(settings)
 
