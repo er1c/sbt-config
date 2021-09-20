@@ -1,6 +1,6 @@
 lazy val root = (project in file("."))
   .settings(
-    dotDataSettings() ++ assemblySettings(assemblyEnabled = true)
+    dotDataSettings(assemblyEnabled = true)
   )
   .settings(
     name := "sbt-config-test-assembly-cache-new-sbt",
@@ -8,7 +8,10 @@ lazy val root = (project in file("."))
     scalaVersion := "2.12.12",
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.5" % Test,
     TaskKey[Unit]("check") := {
-      assert(sbtAssemblyDirectory.value.isDirectory)
+      val assemblyDir = sbtAssemblyDirectory.value
+      if (AssemblyCache.isCIEnv) {
+        assert(assemblyDir.isDirectory)
+      }
       assert(assemblyCacheUnzip.value)
       assert(assemblyCacheOutput.value)
       assert(assembleArtifact.value)

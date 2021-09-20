@@ -10,7 +10,7 @@ import scala.reflect.runtime.universe
 import scala.util.Try
 
 object AssemblyCache extends SbtConfigKeys {
-  private lazy val isCIEnv: Boolean =
+  lazy val isCIEnv: Boolean =
     sys.env.isDefinedAt("BUILD_NUMBER") || // Jenkins
       sys.env.isDefinedAt("GITHUB_RUN_NUMBER") // GitHub
 
@@ -85,14 +85,7 @@ object AssemblyCache extends SbtConfigKeys {
   //   localCacheDirectory / "assembly" and only withCacheUnzip(true) (e.g. withCacheOutput(false))
   //   to avoid creating too large of a cache on jenkins agents
   def ciSettings: Seq[Def.Setting[_]] = {
-    Seq(
-      // Initialize the shim if on older sbt version, otherwise use existing value
-      sbtShimLocalCacheDirectory := AssemblyCache.globalLocalCache,
-      localCacheDirectory := {
-        if (sbtHasLocalCacheDirectory(sbtVersion.value)) localCacheDirectory.value
-        else sbtShimLocalCacheDirectory.value
-      },
-      sbtAssemblyDirectory := localCacheDirectory.value / "assembly",
+    sbtAssemblyDirectoryShim ++ Seq(
       assembly / assemblyOption := {
         val opt = (assembly / assemblyOption).value
         opt.withAssemblyDirectory(sbtAssemblyDirectory.value)
@@ -105,12 +98,24 @@ object AssemblyCache extends SbtConfigKeys {
   // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
   //   the default `target/` directory, but for both withCacheUnzip(true) and withCacheOutput(true)
   def devSettings: Seq[Def.Setting[_]] = {
-    Seq(
+    sbtAssemblyDirectoryShim ++ Seq(
       // These are the default values, but setting them for explicitness/readability
       assembly / assemblyOption ~= {
         _.withCacheUnzip(true)
           .withCacheOutput(true)
       }
+    )
+  }
+
+  def sbtAssemblyDirectoryShim: Seq[Def.Setting[_]] = {
+    Seq(
+      // Initialize the shim if on older sbt version, otherwise use existing value
+      sbtShimLocalCacheDirectory := AssemblyCache.globalLocalCache,
+      localCacheDirectory := {
+        if (sbtHasLocalCacheDirectory(sbtVersion.value)) localCacheDirectory.value
+        else sbtShimLocalCacheDirectory.value
+      },
+      sbtAssemblyDirectory := localCacheDirectory.value / "assembly",
     )
   }
 
