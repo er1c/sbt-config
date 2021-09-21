@@ -152,27 +152,25 @@ object SbtConfigPlugin extends AutoPlugin {
     // Deprecations are not immediate and need a notice
     val fatalWarningsExceptDeprecation: Def.SettingsDefinition =
       Seq(Compile, Test).flatMap(inConfig(_) {
-
-        compile := {
-          val compiled = compile.value
-          if (scalacOptions.value.contains("-Xfatal-warnings")) {
-            val problems = compiled.readSourceInfos().getAllSourceInfos.asScala.flatMap {
-              case (_, info) =>
-                info.getReportedProblems
-            }
+        Seq(
+          scalacOptions += "-Xfatal-warnings",
+          compile := {
+            val compiled = compile.value
+              val problems = compiled.readSourceInfos().getAllSourceInfos.asScala.flatMap {
+                case (_, info) =>
+                  info.getReportedProblems
+              }
 
             val deprecationsOnly = problems.forall { problem => problem.message().contains("is deprecated") }
 
             if (!deprecationsOnly) sys.error("Fatal warnings: some warnings other than deprecations were found.")
             compiled
-          } else {
-            compiled
           }
-        }
+        )
       })
 
     val scalacLintingSettings: Seq[String] = Seq(
-      "-Xlint:_,-unused,-missing-interpolator",
+      "-Xlint:_,-unused", // -missing-interpolator
       "-unchecked",
       "-deprecation",
       "-feature",
@@ -185,13 +183,9 @@ object SbtConfigPlugin extends AutoPlugin {
 
     // Allow some behavior while interactively working on Scala code from the REPL
     private val scalacOptionsConsoleExclusions: Seq[String] = Seq(
-      "-Xlint",
-      "-Xlint:_,-unused,-missing-interpolator",
+      "-Xlint:_,-unused", // -missing-interpolator
       "-unchecked",
-      "-Xfatal-warnings",
       "-Ywarn-unused-import",
-      "-Ywarn-value-discard",
-      "-Ywarn-dead-code",
       "-Ywarn-unused:_,-explicits,-implicits"
     )
 
