@@ -1,2 +1,5 @@
 > compile
+# Should fail in test
 -> Test / compile
+# Should fail in integration test
+-> IntegrationTest / compile

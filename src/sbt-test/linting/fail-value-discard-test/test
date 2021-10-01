@@ -1,2 +1,5 @@
 > compile
+# Should succeed
 > Test / compile
+# Should succeed
+> IntegrationTest / compile

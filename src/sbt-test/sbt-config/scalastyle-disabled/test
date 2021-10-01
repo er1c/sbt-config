@@ -2,34 +2,34 @@
 $ exists target/scala-2.12/classes
 
 > test
-$ exists target/scala-2.12/resource_managed/scalafmt.conf
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalafmt.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 > clean
 $ absent target/scala-2.12/resource_managed
 $ absent target/scala-2.12/classes
 
 > scalafmt
-$ exists target/scala-2.12/resource_managed/scalafmt.conf
+$ exists target/scala-2.12/resource_managed/main/scalafmt.conf
 > clean
 $ absent target/scala-2.12
 
 > scalastyle
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > test:scalastyle
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > Test / scalastyle
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > compile:scalastyle
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > Compile / scalastyle
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > test
-$ exists target/scala-2.12/resource_managed/scalafmt.conf
-$ absent target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalafmt.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > publishLocal

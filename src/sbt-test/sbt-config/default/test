@@ -1,29 +1,36 @@
 > check
 
 > Compile / scalastyle
-$ exists target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > test:scalastyle
-$ exists target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalastyle-config.xml
+
+> clean
+$ absent target/scala-2.12
 
 > compile
-$ absent target/scala-2.12/resource_managed/scalafmt.conf
+$ absent target/scala-2.12/resource_managed/main/scalafmt.conf
+$ absent target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > test
-$ exists target/scala-2.12/resource_managed/scalafmt.conf
+$ exists target/scala-2.12/resource_managed/main/scalafmt.conf
+$ exists target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 # Verify clean + test works again
 > clean
 $ absent target/scala-2.12
 
 > scalastyle
-$ exists target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalastyle-config.xml
+$ absent target/scala-2.12/resource_managed/main/scalafmt.conf
 
 > test:scalastyle
-$ exists target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalastyle-config.xml
+$ absent target/scala-2.12/resource_managed/main/scalafmt.conf
 
 > test
-$ exists target/scala-2.12/resource_managed/scalafmt.conf
-$ exists target/scala-2.12/resource_managed/scalastyle-config.xml
+$ exists target/scala-2.12/resource_managed/main/scalafmt.conf
+$ exists target/scala-2.12/resource_managed/main/scalastyle-config.xml
 
 > publishLocal
