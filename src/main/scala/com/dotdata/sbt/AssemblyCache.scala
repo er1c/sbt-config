@@ -10,10 +10,6 @@ import scala.reflect.runtime.universe
 import scala.util.Try
 
 object AssemblyCache extends SbtConfigKeys {
-  lazy val isCIEnv: Boolean =
-    sys.env.isDefinedAt("BUILD_NUMBER") || // Jenkins
-      sys.env.isDefinedAt("GITHUB_RUN_NUMBER") // GitHub
-
   // region sbt-shim
 
   /** This provides a shim for pre-sbt 1.5.x+ branches */
@@ -73,41 +69,7 @@ object AssemblyCache extends SbtConfigKeys {
 
   // endregion
 
-  // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
-  //   different settings for ci vs dev environments.
-  /** For Global Scope sbt settings */
   def settings: Seq[Def.Setting[_]] = {
-    if (isCIEnv) ciSettings
-    else devSettings
-  }
-
-  // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
-  //   localCacheDirectory / "assembly" and only withCacheUnzip(true) (e.g. withCacheOutput(false))
-  //   to avoid creating too large of a cache on jenkins agents
-  def ciSettings: Seq[Def.Setting[_]] = {
-    sbtAssemblyDirectoryShim ++ Seq(
-      assembly / assemblyOption := {
-        val opt = (assembly / assemblyOption).value
-        opt.withAssemblyDirectory(sbtAssemblyDirectory.value)
-          .withCacheUnzip(true)    // Keep dependency .jar files pre-extracted
-          .withCacheOutput(false) // Don't cache the assembly output on jenkins agents
-      }
-    )
-  }
-
-  // Until https://github.com/sbt/sbt-assembly/issues/445 is implemented, we want to use
-  //   the default `target/` directory, but for both withCacheUnzip(true) and withCacheOutput(true)
-  def devSettings: Seq[Def.Setting[_]] = {
-    sbtAssemblyDirectoryShim ++ Seq(
-      // These are the default values, but setting them for explicitness/readability
-      assembly / assemblyOption ~= {
-        _.withCacheUnzip(true)
-          .withCacheOutput(true)
-      }
-    )
-  }
-
-  def sbtAssemblyDirectoryShim: Seq[Def.Setting[_]] = {
     Seq(
       // Initialize the shim if on older sbt version, otherwise use existing value
       sbtShimLocalCacheDirectory := AssemblyCache.globalLocalCache,
@@ -115,9 +77,16 @@ object AssemblyCache extends SbtConfigKeys {
         if (sbtHasLocalCacheDirectory(sbtVersion.value)) localCacheDirectory.value
         else sbtShimLocalCacheDirectory.value
       },
-      sbtAssemblyDirectory := localCacheDirectory.value / "assembly",
+      assembly / logLevel := sbt.Level.Info,
+      assemblyCacheDependency / logLevel := sbt.Level.Info,
+      assemblyUnzipDirectory := Some(localCacheDirectory.value / "assembly" / "dependencies"),
+      assemblyCacheUseHardLinks := true, // Use hardlinks when on the same filesystem volume
+      assemblyCacheUnzip := true,        // Keep dependency .jar files pre-extracted
+      assemblyCacheOutput := true,       // Default is in the target/ directory and must be created anyhow
     )
   }
+
+
 
 //// This may be too-specific in creating branch-specific caches - especially for withCacheUnzip(true)
 ////   Created a proposal here: https://github.com/sbt/sbt-assembly/issues/445 to split out the different

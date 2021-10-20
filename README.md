@@ -37,6 +37,12 @@ To enable publishing with other default settings:
       .settings(dotDataSettings(publishingEnabled = true))
       .settings(... other settings ...
 
+To enable sbt-assembly with other default settings:
+
+    lazy val myProject = (project in file("."))
+      .settings(dotDataSettings(assemblyEnabled = true))
+      .settings(... other settings ...
+
 To opt-out from some settings, use the following format:
 
     lazy val myProjectWithCustomizations = (project in file("."))

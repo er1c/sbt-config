@@ -8,10 +8,8 @@ lazy val root = (project in file("."))
     scalaVersion := "2.12.12",
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.5" % Test,
     TaskKey[Unit]("check") := {
-      val assemblyDir = sbtAssemblyDirectory.value
-      if (AssemblyCache.isCIEnv) {
-        assert(assemblyDir.isDirectory)
-      }
+      val assemblyUnzipDir = assemblyUnzipDirectory.value.get
+      assert(assemblyUnzipDir.isDirectory)
       assert(assemblyCacheUnzip.value)
       assert(assemblyCacheOutput.value)
       assert(assembleArtifact.value)

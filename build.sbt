@@ -8,6 +8,8 @@ licenses := Seq("Apache 2" -> url("http://www.apache.org/licenses/LICENSE-2.0.tx
 
 val baseVersion = "0.1"
 
+resolvers += "sbt-assembly-releases" at "https://maven.pkg.github.com/ramencloud/sbt-assembly"
+
 version := {
   if (sys.env.get("GITHUB_REF").contains("refs/heads/master")) {
     s"$baseVersion.${sys.env("GITHUB_RUN_NUMBER")}"
@@ -29,11 +31,13 @@ version := {
 publishMavenStyle := true
 
 publishTo := Some("GitHub Package Registry" at "https://maven.pkg.github.com/ramencloud/sbt-config")
-credentials ++= {
+credentials += {
   (sys.env.get("PUBLISH_TO_GITHUB_USERNAME"), sys.env.get("PUBLISH_TO_GITHUB_TOKEN")) match {
     case (Some(user), Some(pass)) =>
-      Seq(Credentials("GitHub Package Registry", "maven.pkg.github.com", user, pass))
-    case _ => Nil
+      Credentials("GitHub Package Registry", "maven.pkg.github.com", user, pass)
+    case _ =>
+      val token = sys.env.getOrElse("GITHUB_TOKEN", throw new IllegalArgumentException(s"Need GITHUB_TOKEN set"))
+      Credentials("GitHub Package Registry", "maven.pkg.github.com", token, token)
   }
 }
 
@@ -46,7 +50,8 @@ scmInfo := Some(
 )
 
 enablePlugins(SbtPlugin)
-addSbtPlugin("com.eed3si9n"   %% "sbt-assembly"          % "1.1.0")
+
+addSbtPlugin("com.eed3si9n"   % "sbt-assembly"           % "1.2.0-DOTDATA")
 addSbtPlugin("org.scalameta"  % "sbt-scalafmt"           % "2.4.2")
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 addSbtPlugin("org.scoverage"  %% "sbt-scoverage"         % "1.8.2")
