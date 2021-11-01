@@ -361,7 +361,7 @@ object SbtConfigPlugin extends AutoPlugin {
       } else {
         universalCommonPublishingSettings ++ Seq(
           organization := "com.dotdata",
-          publishArtifact := false
+          publish / skip := true
         )
       }
     }
