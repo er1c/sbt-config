@@ -6,6 +6,10 @@ import scoverage.ScoverageKeys._
 import sbt.Keys._
 import sbt._
 import sbtassembly.AssemblyPlugin.autoImport._
+import software.amazon.awssdk.auth.credentials.{AwsCredentials, DefaultCredentialsProvider, StaticCredentialsProvider}
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.codeartifact.CodeartifactClient
+import software.amazon.awssdk.services.codeartifact.model.GetAuthorizationTokenRequest
 
 import scala.collection.JavaConverters._
 
@@ -22,6 +26,8 @@ object SbtConfigPlugin extends AutoPlugin {
     object PublishingLocation {
       case object DotDataNexus            extends PublishingLocation
       case class GitHub(repoName: String) extends PublishingLocation
+      case class CodeArtifact(awsAccountID: String, region: String, domain: String, repoName: String, awsCredentials: Option[AwsCredentials])
+          extends PublishingLocation
     }
 
     implicit class ProjectUtils(project: Project) {
@@ -340,6 +346,16 @@ object SbtConfigPlugin extends AutoPlugin {
                   }
                 }
               )
+            case PublishingLocation.CodeArtifact(awsAccountID, region, domain, repoName, awsCredentials) =>
+              Seq(
+                publishTo := Some(
+                  s"${domain}--${repoName}" at (s"https://${domain}-${awsAccountID}.d.codeartifact.${region}.amazonaws.com/maven/${repoName}/")
+                ),
+                credentials += {
+                  val token = obtainCodeArtifactToken(awsAccountID, region, domain, awsCredentials)
+                  Credentials(s"${domain}/${repoName}", s"${domain}-${awsAccountID}.d.codeartifact.${region}.amazonaws.com", "aws", token)
+                }
+              )
           }
         }
       } else {
@@ -425,6 +441,16 @@ object SbtConfigPlugin extends AutoPlugin {
           includeDependency = assemblyIncludeDependency,
           testConfigurations = testConfigurations,
         )
+    }
+
+    def obtainCodeArtifactToken(awsAccountID: String, region: String, domain: String, awsCredentials: Option[AwsCredentials]): String = {
+      val credentialsProvider = awsCredentials match {
+        case Some(credentials) => StaticCredentialsProvider.create(credentials)
+        case None              => DefaultCredentialsProvider.create()
+      }
+      val codeArtifact = CodeartifactClient.builder().credentialsProvider(credentialsProvider).region(Region.of(region)).build()
+      val request      = GetAuthorizationTokenRequest.builder().domain(domain).domainOwner(awsAccountID).build()
+      codeArtifact.getAuthorizationToken(request).authorizationToken()
     }
 
     private def githubRunNumberBasedVersion(majorVersion: String, mainBranchName: String = "main"): String = {

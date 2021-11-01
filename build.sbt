@@ -61,7 +61,10 @@ sources in (Compile, doc) := Seq.empty
 publishArtifact in (Compile, packageDoc) := false
 
 // the following prevents thousands of meaningless stacktraces by docker plugin on JDK 9
-libraryDependencies += "javax.activation" % "activation" % "1.1.1" % Test
+libraryDependencies ++= Seq(
+  "software.amazon.awssdk" % "codeartifact" % "2.17.68",
+  "javax.activation" % "activation" % "1.1.1" % Test
+)
 
 // Make sure to publish the library locally first
 scripted := scripted.dependsOn(publishLocal).evaluated
