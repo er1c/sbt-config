@@ -5,11 +5,12 @@ import org.scalastyle.sbt.ScalastylePlugin.autoImport._
 import scoverage.ScoverageKeys._
 import sbt.Keys._
 import sbt._
+import sbt.librarymanagement.CrossVersion
 import sbtassembly.AssemblyPlugin.autoImport._
 import software.amazon.awssdk.auth.credentials.{AwsCredentials, DefaultCredentialsProvider, StaticCredentialsProvider}
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.codeartifact.CodeartifactClient
-import software.amazon.awssdk.services.codeartifact.model.GetAuthorizationTokenRequest
+import software.amazon.awssdk.services.codeartifact.model.{GetAuthorizationTokenRequest, PackageFormat, PackageVersionStatus, UpdatePackageVersionsStatusRequest}
 
 import scala.collection.JavaConverters._
 
@@ -354,6 +355,28 @@ object SbtConfigPlugin extends AutoPlugin {
                 credentials += {
                   val token = obtainCodeArtifactToken(awsAccountID, region, domain, awsCredentials)
                   Credentials(s"${domain}/${repoName}", s"${domain}-${awsAccountID}.d.codeartifact.${region}.amazonaws.com", "aws", token)
+                },
+                publish := {
+                  val _ = publish.value
+
+                  val packageValue =
+                    CrossVersion(projectID.value.crossVersion, (artifactName / scalaVersion).value, (artifactName / scalaBinaryVersion).value) match {
+                      case Some(f) => f(artifact.value.name)
+                      case None    => artifact.value.name
+                    }
+                  val codeArtifact = codeArtifactClient(region, awsCredentials)
+                  val updatePackageVersionsStatusRequest = UpdatePackageVersionsStatusRequest
+                    .builder()
+                    .domain(domain)
+                    .domainOwner(awsAccountID)
+                    .repository(repoName)
+                    .format(PackageFormat.MAVEN)
+                    .namespace(organization.value)
+                    .packageValue(packageValue)
+                    .versions(version.value)
+                    .targetStatus(PackageVersionStatus.PUBLISHED)
+                    .build()
+                  codeArtifact.updatePackageVersionsStatus(updatePackageVersionsStatusRequest)
                 }
               )
           }
@@ -444,13 +467,17 @@ object SbtConfigPlugin extends AutoPlugin {
     }
 
     def obtainCodeArtifactToken(awsAccountID: String, region: String, domain: String, awsCredentials: Option[AwsCredentials]): String = {
+      val codeArtifact = codeArtifactClient(region, awsCredentials)
+      val request      = GetAuthorizationTokenRequest.builder().domain(domain).domainOwner(awsAccountID).build()
+      codeArtifact.getAuthorizationToken(request).authorizationToken()
+    }
+
+    private def codeArtifactClient(region: String, awsCredentials: Option[AwsCredentials]) = {
       val credentialsProvider = awsCredentials match {
         case Some(credentials) => StaticCredentialsProvider.create(credentials)
         case None              => DefaultCredentialsProvider.create()
       }
-      val codeArtifact = CodeartifactClient.builder().credentialsProvider(credentialsProvider).region(Region.of(region)).build()
-      val request      = GetAuthorizationTokenRequest.builder().domain(domain).domainOwner(awsAccountID).build()
-      codeArtifact.getAuthorizationToken(request).authorizationToken()
+      CodeartifactClient.builder().credentialsProvider(credentialsProvider).region(Region.of(region)).build()
     }
 
     private def githubRunNumberBasedVersion(majorVersion: String, mainBranchName: String = "main"): String = {
