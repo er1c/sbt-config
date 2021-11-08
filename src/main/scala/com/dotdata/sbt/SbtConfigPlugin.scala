@@ -11,6 +11,7 @@ import software.amazon.awssdk.auth.credentials.{AwsCredentials, DefaultCredentia
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.codeartifact.CodeartifactClient
 import software.amazon.awssdk.services.codeartifact.model.{GetAuthorizationTokenRequest, PackageFormat, PackageVersionStatus, UpdatePackageVersionsStatusRequest}
+import com.eed3si9n.jarjarabrams.{ ShadeRule => JJAShadeRule }
 
 import scala.collection.JavaConverters._
 
@@ -497,6 +498,11 @@ object SbtConfigPlugin extends AutoPlugin {
         githubVersion.getOrElse(localDevVersion)
       }
     }
+
+    def assemblyShadeRules: Seq[JJAShadeRule] = Seq(
+        ShadeRule.rename("com.typesafe.config.**" -> "shadeio.config.@1").inAll,
+        ShadeRule.rename("cats.**" -> "shadeio.cats.@1").inAll
+    )
   }
 
 }
