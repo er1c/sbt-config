@@ -1,16 +1,17 @@
 package com.dotdata.sbt
 
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport._
+import org.scalafmt.sbt.ScalafmtPlugin.scalafmtConfigSettings
 import org.scalastyle.sbt.ScalastylePlugin.autoImport._
 import scoverage.ScoverageKeys._
 import sbt.Keys._
 import sbt._
 import sbt.librarymanagement.CrossVersion
 import sbtassembly.AssemblyPlugin.autoImport._
-import software.amazon.awssdk.auth.credentials.{AwsCredentials, DefaultCredentialsProvider, StaticCredentialsProvider}
+import software.amazon.awssdk.auth.credentials.{ AwsCredentials, DefaultCredentialsProvider, StaticCredentialsProvider }
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.codeartifact.CodeartifactClient
-import software.amazon.awssdk.services.codeartifact.model.{GetAuthorizationTokenRequest, PackageFormat, PackageVersionStatus, UpdatePackageVersionsStatusRequest}
+import software.amazon.awssdk.services.codeartifact.model.{ GetAuthorizationTokenRequest, PackageFormat, PackageVersionStatus, UpdatePackageVersionsStatusRequest }
 
 import scala.collection.JavaConverters._
 
@@ -86,7 +87,7 @@ object SbtConfigPlugin extends AutoPlugin {
         scalafmtConfig := generateScalafmtConf((Compile / resourceManaged).value),
       )
 
-      val configSettings = (Compile +: testConfigurations).flatMap(inConfig(_)(Seq(
+      val configSettings = (Compile +: testConfigurations).flatMap(inConfig(_)(scalafmtConfigSettings ++ Seq(
         resourceGenerators += generateScalafmtConfTask,
         scalafmt := scalafmt.dependsOn(generateScalafmtConfTask).value,
         scalafmtAll := scalafmtAll.dependsOn(generateScalafmtConfTask).value,
