@@ -280,8 +280,9 @@ object SbtConfigPlugin extends AutoPlugin {
       //  - -o: output to stdout (default, but required for other flags)
       //  - D: Show durations of each test
       //  - F: Show full stack traces
-      //  - -u: Causes test results to be written to junit-style xml files in the named directory so CI can pick it up
-      testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oDF", "-u", "target/test-reports")
+      // Note: the "-u" flag for writing JUnit XMLs is not used since it conflicts
+      // with the JUnitXmlReportPlugin built into SBT in recent versions
+      testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
     )
 
     def coverageSettings(excludedPackages: String = "", minimumCoverage: Double = 80.00, failOnMinimum: Boolean = true): Def.SettingsDefinition = {
