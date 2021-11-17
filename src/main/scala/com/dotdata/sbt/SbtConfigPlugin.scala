@@ -11,7 +11,6 @@ import software.amazon.awssdk.auth.credentials.{AwsCredentials, DefaultCredentia
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.codeartifact.CodeartifactClient
 import software.amazon.awssdk.services.codeartifact.model.{GetAuthorizationTokenRequest, PackageFormat, PackageVersionStatus, UpdatePackageVersionsStatusRequest}
-import com.eed3si9n.jarjarabrams.{ ShadeRule => JJAShadeRule }
 
 import scala.collection.JavaConverters._
 
@@ -410,6 +409,7 @@ object SbtConfigPlugin extends AutoPlugin {
 
           settings ++ (Compile +: testConfigurations).flatMap(inConfig(_)(settings))
         }
+
         val assemblySettings = Seq(
           assembleArtifact := true,
           assembly / assemblyOption ~= {
