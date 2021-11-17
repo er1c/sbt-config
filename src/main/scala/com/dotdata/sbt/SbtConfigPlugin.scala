@@ -410,7 +410,6 @@ object SbtConfigPlugin extends AutoPlugin {
 
           settings ++ (Compile +: testConfigurations).flatMap(inConfig(_)(settings))
         }
-
         val assemblySettings = Seq(
           assembleArtifact := true,
           assembly / assemblyOption ~= {
@@ -418,6 +417,11 @@ object SbtConfigPlugin extends AutoPlugin {
               .withIncludeBin(includeBin)
               .withIncludeDependency(includeDependency)
           },
+          assembly / assemblyShadeRules := Seq(
+            ShadeRule.rename("com.typesafe.config.**" -> "shadeio.config.@1").inAll,
+            ShadeRule.rename("cats.**" -> "shadeio.cats.@1").inAll,
+            ShadeRule.rename("shapeless.**" -> "shadeio.shapeless.@1").inAll
+          ),
           assembly / assemblyMergeStrategy := {
             case "scalafmt.conf" => MergeStrategy.discard
             case "scalastyle-config.xml" => MergeStrategy.discard
@@ -498,11 +502,6 @@ object SbtConfigPlugin extends AutoPlugin {
         githubVersion.getOrElse(localDevVersion)
       }
     }
-
-    def assemblyShadeRules: Seq[JJAShadeRule] = Seq(
-        ShadeRule.rename("com.typesafe.config.**" -> "shadeio.config.@1").inAll,
-        ShadeRule.rename("cats.**" -> "shadeio.cats.@1").inAll
-    )
   }
 
 }
